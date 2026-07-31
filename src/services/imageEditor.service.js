@@ -1,26 +1,19 @@
 const sharp = require('sharp');
+const opentype = require('opentype.js');
 const fs = require('fs');
 const path = require('path');
 
 const FONT_PATH = path.join(__dirname, '..', '..', 'fonts', 'Roboto-Bold.ttf');
-const FONT_FAMILY = 'PromoFont';
 
-let cachedFontBase64 = null;
+let cachedFont = null;
 
-function getFontBase64() {
-  if (!cachedFontBase64) {
-    cachedFontBase64 = fs.readFileSync(FONT_PATH).toString('base64');
+function getFont() {
+  if (!cachedFont) {
+    const buf = fs.readFileSync(FONT_PATH);
+    const arrayBuffer = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.length);
+    cachedFont = opentype.parse(arrayBuffer);
   }
-  return cachedFontBase64;
-}
-
-function escapeXml(str) {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+  return cachedFont;
 }
 
 async function applyPromoCode(imageBuffer, code, placement) {
@@ -31,33 +24,26 @@ async function applyPromoCode(imageBuffer, code, placement) {
   const fontSize = Math.max(14, Math.min(widthBasedSize, heightBasedSize, 72));
   const strokeWidth = Math.max(2, Math.round(fontSize / 12));
 
-  const safeCode = escapeXml(code);
-  const fontBase64 = getFontBase64();
+  const font = getFont();
+  const scale = fontSize / font.unitsPerEm;
+
+  const advanceWidth = font.getAdvanceWidth(code, fontSize);
+  const startX = x - advanceWidth / 2;
+  const baselineY = y + ((font.ascender + font.descender) * scale) / 2;
+
+  const textPath = font.getPath(code, startX, baselineY, fontSize);
+  const pathData = textPath.toPathData(2);
 
   const svg = `
     <svg width="${imageWidth}" height="${imageHeight}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <style type="text/css">
-          @font-face {
-            font-family: '${FONT_FAMILY}';
-            src: url(data:font/truetype;charset=utf-8;base64,${fontBase64}) format('truetype');
-            font-weight: bold;
-          }
-        </style>
-      </defs>
-      <text
-        x="${x}"
-        y="${y}"
-        font-family="${FONT_FAMILY}"
-        font-size="${fontSize}"
-        font-weight="bold"
+      <path
+        d="${pathData}"
         fill="${textColor}"
         stroke="${strokeColor}"
         stroke-width="${strokeWidth}"
-        text-anchor="middle"
-        dominant-baseline="middle"
+        stroke-linejoin="round"
         paint-order="stroke"
-      >${safeCode}</text>
+      />
     </svg>
   `;
 
