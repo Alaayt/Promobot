@@ -1,6 +1,7 @@
 const sharp = require('sharp');
 const { findPromoBoxWithAI } = require('../services/aiVision.service');
 const { refineBox } = require('../services/boxRefinement.service');
+const { findLocalBoxPlacement } = require('../services/boxDetection.service');
 const { findGridPlacement, getRegionBrightness } = require('../services/imageAnalysis.service');
 const { applyPromoCode } = require('../services/imageEditor.service');
 const logger = require('../utils/logger');
@@ -31,7 +32,10 @@ async function boxToPlacement(imageBuffer, box, imageWidth, imageHeight) {
  * الأولوية:
  * 1) الذكاء الاصطناعي (Groq Vision) - بيدي تقدير تقريبي لمكان صندوق الكود.
  * 2) تدقيق محلي (Sharp) - بيدور حوالين التقدير التقريبي عشان يلاقي حدود الصندوق الفعلي بدقة.
- * 3) لو الذكاء الاصطناعي مش متاح أو مالقاش صندوق أصلاً - يرجع لطريقة تحليل الشبكة (أنسب منطقة فاضية).
+ * 3) لو الذكاء الاصطناعي مش متاح (مفيش مفتاح، فشل الاتصال، إلخ) أو مالقاش صندوق -
+ *    كاشف صندوق محلي بالكامل (بدون شبكة) بيدور على الصندوق الفعلي في الصورة نفسها.
+ * 4) لو مفيش صندوق واضح خالص في الصورة (صورة عادية بدون تصميم مخصص) - يرجع لطريقة
+ *    تحليل الشبكة (أنسب منطقة فاضية عمومًا) كملاذ أخير.
  */
 async function generatePromoImage(imageBuffer, code) {
   if (!code || !code.trim()) {
@@ -42,22 +46,30 @@ async function generatePromoImage(imageBuffer, code) {
   const { width, height } = metadata;
 
   let placement;
+  let finalBox = null;
 
   const aiBox = await findPromoBoxWithAI(imageBuffer, width, height);
 
   if (aiBox) {
     const refined = await refineBox(imageBuffer, aiBox, width, height);
-    const finalBox = refined || aiBox;
+    finalBox = refined || aiBox;
 
     logger.info(
       refined
         ? 'تم تدقيق مكان الصندوق محلياً بعد تقدير الذكاء الاصطناعي (دقة عالية)'
         : 'فشل التدقيق المحلي، تم استخدام تقدير الذكاء الاصطناعي التقريبي كما هو'
     );
+  } else {
+    finalBox = await findLocalBoxPlacement(imageBuffer);
+    if (finalBox) {
+      logger.info('الذكاء الاصطناعي مش متاح، تم استخدام الكاشف المحلي للصندوق (بدون شبكة)');
+    }
+  }
 
+  if (finalBox) {
     placement = await boxToPlacement(imageBuffer, finalBox, width, height);
   } else {
-    logger.info('تم استخدام تحليل الشبكة الاحتياطي (أنسب منطقة فاضية)');
+    logger.info('تم استخدام تحليل الشبكة الاحتياطي (أنسب منطقة فاضية) - مفيش صندوق واضح في الصورة');
     placement = await findGridPlacement(imageBuffer);
   }
 

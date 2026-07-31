@@ -21,7 +21,9 @@ async function applyPromoCode(imageBuffer, code, placement) {
 
   const widthBasedSize = Math.round(cellWidth / Math.max(code.length * 0.6, 1));
   const heightBasedSize = cellHeight ? Math.round(cellHeight * 0.6) : widthBasedSize;
-  const fontSize = Math.max(14, Math.min(widthBasedSize, heightBasedSize, 72));
+  // أقصى حجم خط بالنسبة لدقة الصورة نفسها (مش رقم ثابت) عشان يفضل متناسق حتى على صور عالية الدقة جداً
+  const maxSize = Math.round(Math.min(imageWidth, imageHeight) * 0.1);
+  const fontSize = Math.max(14, Math.min(widthBasedSize, heightBasedSize, maxSize));
   const strokeWidth = Math.max(2, Math.round(fontSize / 12));
 
   const font = getFont();
