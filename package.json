@@ -1,0 +1,23 @@
+{
+  "name": "telegram-promo-bot",
+  "version": "1.0.0",
+  "description": "بوت تليجرام يضيف بروموكود على أي صورة تلقائياً في أفضل مكان فاضي فيها",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "groq-sdk": "^1.4.1",
+    "node-fetch": "^2.7.0",
+    "sharp": "^0.33.5",
+    "telegraf": "^4.16.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
